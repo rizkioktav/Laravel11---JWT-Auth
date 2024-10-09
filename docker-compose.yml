@@ -1,0 +1,58 @@
+version: "3.8"
+services:
+  # Application
+  app:
+    container_name: auth-app
+    build:
+      context: ./docker/services/app
+      dockerfile: Dockerfile
+    image: auth-service-app
+    volumes:
+      - .:/var/www
+    networks:
+      - kong-net
+  # Web Server
+  web:
+    image: nginx:1.21
+    container_name: auth-web
+    # build:
+    #   context: ./docker/services/web
+    #   dockerfile: web.dockerfile
+    volumes:
+      - .:/var/www
+      - ./docker/services/web/vhost.conf:/etc/nginx/conf.d/default.conf
+    ports:
+      - "${APP_PORT:-80}:80"
+    networks:
+      - kong-net
+  pgsql:
+    container_name: auth-db
+    image: 'postgres:15'
+    ports:
+      - '${FORWARD_DB_PORT:-5432}:5432'
+    environment:
+      PGPASSWORD: '${DB_PASSWORD:-secret}'
+      POSTGRES_DB: '${DB_DATABASE}'
+      POSTGRES_USER: '${DB_USERNAME}'
+      POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
+    volumes:
+      - 'auth-db:/var/lib/postgresql/data'
+    networks:
+      - kong-net
+    healthcheck:
+      test:
+          - CMD
+          - pg_isready
+          - '-q'
+          - '-d'
+          - '${DB_DATABASE}'
+          - '-U'
+          - '${DB_USERNAME}'
+      retries: 3
+      timeout: 5s
+networks:
+  kong-net:
+    driver: bridge
+volumes:
+  auth-db:
+    driver: local
